@@ -5,52 +5,65 @@ import requests
 
 @neovim.plugin
 class Main(object):
-    def __init__(self, vim):
-        self.vim = vim
+    def __init__(self, nvim):
+        self.nvim = nvim
+
+    @neovim.autocmd('BufReadCmd', pattern="conf://*", eval='expand("<amatch>")', sync=True)
+    def bufread_handler(self, filename):
+        self.nvim.command(f"call OpenConfluencePage({filename})")
+
+    def fetchConfluencePage(self, space, article_name):
+        params={'spaceKey': space, 'title': article_name, 'status': 'current', 'expand': 'body.view.version.number', 'limit': 1}
+        r = requests.get(self.url, params=params , verify=True, auth=(self.user, self.apikey))
+        resp = json.loads(r.text)['results']
+        if len(resp) > 0:
+            confId = int(resp[0]['id'])
+            if 'version' in resp[0]:
+                confVersion = int(resp[0]['version']['number'])
+            else:
+                confVersion = 0
+            article = resp[0]['body']['view']['value']
+            h = html2text.HTML2Text()
+            h.body_width = 0
+            article_markdown = h.handle(article)
+            return { 'article': article_markdown, 'version': confVersion }
+        else:
+            return { 'article': "", 'version': 0 }
+
 
     @neovim.function('OpenConfluencePage')
     def openConfluencePage(self, args):
-        self.vim.command('echo "hello from DoItPython"')
+        self.user = self.nvim.vars['confluence_user']
+        self.apikey = self.nvim.vars['confluence_apikey']
+        self.url = self.nvim.vars['confluence_url']
+
         # This should be okay since requests needs urllib
         try:
             from urllib.parse import urlparse
         except ImportError:
             from urlparse import urlparse
 
-        cb = vim.current.buffer
+        cb = self.nvim.current.buffer
 
-        conf_path = vim.eval("a:conf_path")
+        conf_path = self.nvim.eval("a:conf_path")
 
         space_name = urlparse(conf_path).netloc
         article_name = urlparse(conf_path).path.split('/')[1]
 
-        eval_value = int(vim.eval('exists("g:confluence_url")'))
-        if not eval_value:
-        	print("Confluence url value not set: ".format(eval_value))
-
-        confluence_url = vim.eval("g:confluence_url")
-        r = requests.get(confluence_url, params={'spaceKey': space_name, 'title': article_name, 'status': 'current', 'expand': 'body.view,version.number', 'limit': 1}, verify=True)
-
-        resp = json.loads(r.text)['results']
-        if len(resp) > 0:
-            vim.command("let b:confid = %d" % int(resp[0]['id']))
-            vim.command("let b:confv = %d" % int(resp[0]['version']['number']))
-
-            article = resp[0]['body']['view']['value']
-            h = html2text.HTML2Text()
-            h.body_width = 0
-            article_markdown = h.handle(article)
-
-            del cb[:]
-            for line in article_markdown.split('\n'):
+        article_data = self.fetchConfluencePage(space_name, article_name)
+        article_version = article_data["version"]
+        article = article_data["article"]
+        del cb[:]
+        if article != "":
+            for line in article.split('\n'):
                 cb.append(line.encode('utf8'))
+                self.nvim.command(f"let b:confv = {article_version}")
             del cb[0]
         else:
-            vim.command("let b:confid = 0")
-            vim.command("let b:confv = 0")
-            vim.command("echo \"New confluence entry - %s\"" % article_name)
-        vim.command("set filetype=mkd.markdown")
-
+            self.nvim.command("let b:confid = 0")
+            self.nvim.command("let b:confv = 0")
+            self.nvim.command("echo \"New confluence entry - %s\"" % article_name)
+        self.nvim.command("set filetype=mkd.markdown")
 
     @neovim.function('WriteConfluencePage')
     def writeConfluencePage(self, args):
