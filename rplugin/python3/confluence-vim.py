@@ -10,7 +10,7 @@ class Main(object):
 
     @neovim.autocmd('BufReadCmd', pattern="conf://*", eval='expand("<amatch>")', sync=True)
     def bufread_handler(self, filename):
-        self.nvim.command(f"call OpenConfluencePage({filename})")
+        self.nvim.command(f"call OpenConfluencePage('{filename}')")
 
     def fetchConfluencePage(self, space, article_name):
         params={'spaceKey': space, 'title': article_name, 'status': 'current', 'expand': 'body.view.version.number', 'limit': 1}
