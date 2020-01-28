@@ -36,6 +36,7 @@ class Main(object):
         self.user = self.nvim.vars['confluence_user']
         self.apikey = self.nvim.vars['confluence_apikey']
         self.url = self.nvim.vars['confluence_url']
+        conf_path = args[0]
 
         # This should be okay since requests needs urllib
         try:
@@ -44,8 +45,6 @@ class Main(object):
             from urlparse import urlparse
 
         cb = self.nvim.current.buffer
-
-        conf_path = self.nvim.eval("a:conf_path")
 
         space_name = urlparse(conf_path).netloc
         article_name = urlparse(conf_path).path.split('/')[1]
@@ -74,7 +73,7 @@ class Main(object):
 
         cb = vim.current.buffer
 
-        conf_path = vim.eval("a:conf_path")
+        conf_path = args[0]
 
         space_name = urlparse(conf_path).netloc
         article_name = urlparse(conf_path).path.split('/')[1]
